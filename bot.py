@@ -8,23 +8,21 @@ from collections import defaultdict
 import threading
 import os
 
-# ====================== CONFIG (Railway Optimized) ======================
-TOKEN = os.getenv("TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# ====================== CONFIG (Hybrid - Works on Railway + Local) ======================
+TOKEN = os.getenv("TOKEN") or "8962392711:AAGoYjSYq4iuMupJaruE13YnHMrsJ3lVh-E"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or "AIzaSyDLbCpgUB1Tz68VEnobglQ3h_RbCUrt6yM"
 YOUR_ADMIN_ID = 7446777175
 
 if not TOKEN:
-    print("❌ ERROR: TOKEN environment variable not found!")
+    print("❌ CRITICAL ERROR: No Token Found!")
     exit(1)
-
-if not GEMINI_API_KEY:
-    print("⚠️  Warning: GEMINI_API_KEY not found!")
 
 bot = telebot.TeleBot(TOKEN)
 user_history = defaultdict(list)
 user_free_queries = defaultdict(int)
 
 print("✅ Bot Token Loaded Successfully!")
+print(f"✅ Bot Started with Token: {TOKEN[:15]}...")
 
 # ====================== DATABASE ======================
 def init_db():
@@ -84,7 +82,6 @@ def add_referral(referred_id, referrer_id):
             bot.send_message(referrer_id, "🎁 **Referral Reward!** You earned 1 Free Premium Month!")
         except:
             pass
-    conn.close()
 
 # ====================== Gemini AI ======================
 def ask_gemini(user_id, prompt):
@@ -92,7 +89,7 @@ def ask_gemini(user_id, prompt):
         user_history[user_id] = user_history[user_id][-8:]
     
     history = user_history[user_id][-8:]
-    full_prompt = "\n".join(history) + f"\nUser: {prompt}\nYou are a world-class money making expert. Be practical, honest and motivating."
+    full_prompt = "\n".join(history) + f"\nUser: {prompt}\nYou are a world-class money making expert. Give practical, actionable advice."
 
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
@@ -103,9 +100,8 @@ def ask_gemini(user_id, prompt):
         user_history[user_id].append(f"User: {prompt}")
         user_history[user_id].append(f"AI: {answer[:400]}...")
         return answer
-    except Exception as e:
-        print(f"AI Error: {e}")
-        return "❌ AI is busy right now. Please try again in 10 seconds."
+    except:
+        return "❌ AI is busy right now. Please try again."
 
 # ====================== KEYBOARDS ======================
 def main_menu():
@@ -136,17 +132,16 @@ def start(message):
 
     bot.send_message(message.chat.id,
                      "👋 Welcome to **MoneyMachine Bot** 🔥\n\n"
-                     "Real AI • Daily Tips • Digital Shop • Refer & Earn\n\n"
-                     "Use buttons below 👇",
+                     "Real AI • Daily Tips • Shop • Refer & Earn",
                      reply_markup=main_menu())
 
 @bot.message_handler(commands=['myplan'])
 def myplan(message):
     user = get_user(message.from_user.id)
     if user[2] == 1:
-        bot.send_message(message.chat.id, f"✅ **Premium Active** until {user[3][:10] if user[3] else 'N/A'}")
+        bot.send_message(message.chat.id, "✅ **Premium Active**")
     else:
-        bot.send_message(message.chat.id, "🆓 You are on **Free Plan**\nUpgrade for unlimited AI!")
+        bot.send_message(message.chat.id, "🆓 You are on Free Plan.\nUpgrade for unlimited AI!")
 
 # ====================== CALLBACKS ======================
 @bot.callback_query_handler(func=lambda call: True)
@@ -169,7 +164,7 @@ def callback(call):
         if user[2] == 1:
             bot.send_message(call.message.chat.id, "✅ You already have Premium!")
         else:
-            send_invoice(call.message.chat.id, "Premium Monthly", "Unlimited AI + Daily Tips + Exclusive Content", 500, "premium_monthly")
+            send_invoice(call.message.chat.id, "Premium Monthly", "Unlimited AI + Daily Tips", 500, "premium_monthly")
 
     elif call.data == "ai":
         bot.send_message(call.message.chat.id, "🧠 Ask me anything about making money!")
@@ -181,7 +176,7 @@ def callback(call):
     elif call.data.startswith("buy_"):
         product = call.data.replace("buy_", "")
         prices = {"affiliate":(150,"Affiliate Mastery"), "signals":(300,"Crypto Signals"), 
-                  "dropship":(250,"Dropshipping Kit"), "notion":(200,"Notion Tracker"), 
+                  "dropship":(250,"Dropshipping Kit"), "notion":(200,"Notion System"), 
                   "ecom":(350,"E-commerce Mastery")}
         amount, title = prices.get(product, (150, "Digital Product"))
         send_invoice(call.message.chat.id, title, "Instant delivery", amount, f"buy_{product}")
@@ -189,11 +184,11 @@ def callback(call):
 def get_shop_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("📘 Affiliate Mastery - 150 Stars", callback_data="buy_affiliate"),
-        types.InlineKeyboardButton("📊 Crypto Signals - 300 Stars", callback_data="buy_signals"),
-        types.InlineKeyboardButton("🚀 Dropshipping Kit - 250 Stars", callback_data="buy_dropship"),
-        types.InlineKeyboardButton("📋 Notion System - 200 Stars", callback_data="buy_notion"),
-        types.InlineKeyboardButton("🛍️ E-commerce Mastery - 350 Stars", callback_data="buy_ecom")
+        types.InlineKeyboardButton("📘 Affiliate - 150 Stars", callback_data="buy_affiliate"),
+        types.InlineKeyboardButton("📊 Signals - 300 Stars", callback_data="buy_signals"),
+        types.InlineKeyboardButton("🚀 Dropshipping - 250 Stars", callback_data="buy_dropship"),
+        types.InlineKeyboardButton("📋 Notion - 200 Stars", callback_data="buy_notion"),
+        types.InlineKeyboardButton("🛍️ E-commerce - 350 Stars", callback_data="buy_ecom")
     )
     return markup
 
@@ -217,14 +212,14 @@ def successful_payment(message):
     uid = message.from_user.id
     if "premium" in payload:
         set_premium(uid, 30)
-        bot.send_message(uid, "🎉 **Premium Activated!** Unlimited AI unlocked!")
+        bot.send_message(uid, "🎉 **Premium Activated!**")
     else:
         product = payload.replace("buy_", "")
-        bot.send_message(uid, f"✅ Payment Successful! Delivering your product...")
+        bot.send_message(uid, f"✅ Payment Successful! Delivering {product}...")
         deliver_product(uid, product)
 
 def deliver_product(chat_id, product):
-    bot.send_message(chat_id, f"📥 **Your Product is Ready**\n\nhttps://t.me/kkmachinebot\n\n(Replace this with real download link later)")
+    bot.send_message(chat_id, "📥 **Your Product**\n\nhttps://t.me/kkmachinebot\n(Replace with real link later)")
 
 # ====================== AI CHAT ======================
 @bot.message_handler(func=lambda m: True)
@@ -238,9 +233,9 @@ def chat(message):
         if user_free_queries[uid] < 3:
             user_free_queries[uid] += 1
             response = ask_gemini(uid, message.text)
-            bot.reply_to(message, f"{response}\n\n🔓 Free uses left: {3 - user_free_queries[uid]}/3")
+            bot.reply_to(message, f"{response}\n\nFree uses left: {3-user_free_queries[uid]}/3")
         else:
-            bot.reply_to(message, "💎 Free limit reached.\nUpgrade to Premium for unlimited AI!")
+            bot.reply_to(message, "💎 Free limit reached. Upgrade to Premium!")
 
 # ====================== DAILY TIPS ======================
 def send_daily_tips():
@@ -251,7 +246,7 @@ def send_daily_tips():
         users = [row[0] for row in c.fetchall()]
         conn.close()
 
-        tip = ask_gemini(0, "Give one powerful actionable money-making tip for today (max 300 characters)")
+        tip = ask_gemini(0, "Give one powerful short money-making tip today")
         for uid in users:
             try:
                 bot.send_message(uid, f"📅 **Daily Money Tip**\n\n{tip}")
@@ -280,7 +275,7 @@ def get_btc_price():
 @bot.message_handler(commands=['admin'])
 def admin(message):
     if message.from_user.id != YOUR_ADMIN_ID: return
-    bot.send_message(message.chat.id, "🛠️ Admin Panel\n\n/stats\n/broadcast <text>")
+    bot.send_message(message.chat.id, "🛠️ Admin Panel\n/stats\n/broadcast <text>")
 
 @bot.message_handler(commands=['stats'])
 def stats(message):
@@ -291,26 +286,7 @@ def stats(message):
     total = c.fetchone()[0]
     c.execute("SELECT COUNT(*) FROM users WHERE is_premium=1")
     premium = c.fetchone()[0]
-    bot.send_message(message.chat.id, f"📊 **Stats**\nTotal Users: {total}\nPremium Users: {premium}")
+    bot.send_message(message.chat.id, f"📊 Total Users: {total}\nPremium: {premium}")
 
-@bot.message_handler(commands=['broadcast'])
-def broadcast(message):
-    if message.from_user.id != YOUR_ADMIN_ID: return
-    text = message.text.replace("/broadcast ", "", 1)
-    if not text: return bot.reply_to(message, "Usage: /broadcast <message>")
-    conn = sqlite3.connect('moneybot.db')
-    c = conn.cursor()
-    c.execute("SELECT user_id FROM users")
-    users = c.fetchall()
-    conn.close()
-    sent = 0
-    for u in users:
-        try:
-            bot.send_message(u[0], text)
-            sent += 1
-        except:
-            pass
-    bot.reply_to(message, f"✅ Broadcast sent to {sent} users.")
-
-print("🚀 MoneyMachine Bot v6.1 Started Successfully on Railway!")
+print("🚀 MoneyMachine Bot v6.2 Started Successfully!")
 bot.infinity_polling()
