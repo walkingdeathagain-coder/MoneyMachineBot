@@ -79,6 +79,7 @@ def add_referral(referred_id, referrer_id):
             pass
 
 # ====================== IMPROVED Gemini AI ======================
+
 def ask_gemini(user_id, prompt):
     if len(user_history[user_id]) > 10:
         user_history[user_id] = user_history[user_id][-8:]
@@ -90,24 +91,20 @@ def ask_gemini(user_id, prompt):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         data = {
             "contents": [{"parts": [{"text": full_prompt}]}],
-            "generationConfig": {
-                "temperature": 0.7,
-                "maxOutputTokens": 700
-            }
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 600}
         }
-        resp = requests.post(url, json=data, timeout=25).json()
+        resp = requests.post(url, json=data, timeout=30).json()
         
         if 'candidates' in resp and len(resp['candidates']) > 0:
             answer = resp['candidates'][0]['content']['parts'][0]['text']
             user_history[user_id].append(f"User: {prompt}")
-            user_history[user_id].append(f"AI: {answer[:400]}...")
+            user_history[user_id].append(f"AI: {answer[:300]}...")
             return answer
         else:
-            return "❌ AI service is busy. Please try again in 10 seconds."
+            return "🔄 AI is busy. Please try again in 15 seconds."
             
-    except Exception as e:
-        print("AI Error:", e)
-        return "❌ AI is temporarily unavailable.\nPlease try again or upgrade to Premium."
+    except:
+        return "❌ AI service is currently unavailable.\n\nTry again later or upgrade to Premium."
 
 # ====================== KEYBOARDS ======================
 def main_menu():
