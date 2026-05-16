@@ -20,31 +20,35 @@ user_free_queries = defaultdict(int)
 
 print("✅ Bot Started Successfully!")
 
-# ====================== FALLBACK RESPONSES ======================
+# ====================== GOOD FALLBACK RESPONSES ======================
 fallback_responses = [
-    "💡 **Top Side Hustle Right Now**: Start Affiliate Marketing in high-ticket niches like software, coaching, or health supplements. Many are earning $3k–$10k/month.",
-    "🚀 **Best Beginner Method**: Create digital products (Notion templates, eBooks, checklists) and sell them on Gumroad or Telegram.",
-    "📈 **Pro Tip**: Focus on solving painful problems. People pay the most for solutions to money, health, and relationships.",
-    "🔥 **Fast Money Idea**: Offer services on Fiverr/Upwork like Telegram bot development, Canva designs, or AI prompt engineering.",
-    "💰 **2026 Trend**: Build Telegram Mini Apps and monetize with ads + premium features.",
-    "📌 **Golden Rule**: Consistency beats talent. Post daily content in your niche for 90 days."
+    "💰 **Best Method Right Now**: Affiliate Marketing in AI tools, Notion templates, or health supplements. High commissions + recurring income.",
+    "🚀 **Fast Start**: Create and sell digital products (eBooks, templates, checklists). Zero inventory, 90% profit.",
+    "📈 **Pro Strategy**: Build an audience on Telegram or Twitter, then promote high-ticket offers ($500+).",
+    "🔥 **2026 Trend**: Telegram Mini Apps + Paid Signals + Premium Communities.",
+    "💡 **Golden Rule**: Solve expensive problems. The more pain you solve, the more people will pay.",
+    "⚡ **Quick Win**: Offer services like AI content creation, Canva designs, or Telegram bot development on Fiverr.",
+    "📌 **Daily Advice**: Post valuable content every day for 90 days. Consistency beats everything."
 ]
 
 # ====================== DATABASE ======================
 def init_db():
     conn = sqlite3.connect('moneybot.db')
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users (...)''')  # shortened for space
-    # (keeping same as before)
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+                    user_id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    is_premium INTEGER DEFAULT 0,
+                    premium_until TEXT,
+                    referral_count INTEGER DEFAULT 0,
+                    referred_by INTEGER,
+                    joined DATE)''')
     conn.commit()
     conn.close()
 
 init_db()
 
-# ... (I'll keep other functions short for now)
-
 def get_user(user_id):
-    # same as previous versions
     conn = sqlite3.connect('moneybot.db')
     c = conn.cursor()
     c.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
@@ -55,27 +59,33 @@ def get_user(user_id):
     conn.close()
     return user
 
-# ====================== SMART AI FUNCTION ======================
-def ask_gemini_or_fallback(user_id, prompt):
-    # Try Gemini first
+def set_premium(user_id, days=30):
+    until = (datetime.now() + timedelta(days=days)).isoformat()
+    conn = sqlite3.connect('moneybot.db')
+    c = conn.cursor()
+    c.execute("UPDATE users SET is_premium=1, premium_until=? WHERE user_id=?", (until, user_id))
+    conn.commit()
+    conn.close()
+
+# ====================== AI FUNCTION (Gemini + Strong Fallback) ======================
+def get_ai_response(user_id, prompt):
+    # Try Gemini
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         data = {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.7, "maxOutputTokens": 600}
         }
-        resp = requests.post(url, json=data, timeout=20).json()
-        
+        resp = requests.post(url, json=data, timeout=15).json()
         if 'candidates' in resp:
-            answer = resp['candidates'][0]['content']['parts'][0]['text']
-            return answer
+            return resp['candidates'][0]['content']['parts'][0]['text']
     except:
         pass
     
-    # Fallback if Gemini fails
-    return random.choice(fallback_responses) + "\n\n💡 *Powered by built-in knowledge (Gemini temporarily unavailable)*"
+    # Fallback
+    return random.choice(fallback_responses) + "\n\n*💡 (Smart fallback active - Gemini temporarily down)*"
 
-# ====================== MAIN MENU & COMMANDS ======================
+# ====================== KEYBOARDS ======================
 def main_menu():
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -88,25 +98,31 @@ def main_menu():
     )
     return markup
 
+# ====================== HANDLERS ======================
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, "👋 Welcome to **MoneyMachine Bot** 🔥\n\nReal value delivered even if AI is busy!", reply_markup=main_menu())
+    bot.send_message(message.chat.id,
+                     "👋 Welcome to **MoneyMachine Bot** 🔥\n\nAlways ready to help you make money!",
+                     reply_markup=main_menu())
 
 @bot.message_handler(func=lambda m: True)
 def chat(message):
     user = get_user(message.from_user.id)
     uid = message.from_user.id
-    
-    if user[2] == 1:   # Premium
-        response = ask_gemini_or_fallback(uid, message.text)
+
+    if user[2] == 1:  # Premium
+        response = get_ai_response(uid, message.text)
         bot.reply_to(message, response)
     else:
         if user_free_queries[uid] < 3:
             user_free_queries[uid] += 1
-            response = ask_gemini_or_fallback(uid, message.text)
+            response = get_ai_response(uid, message.text)
             bot.reply_to(message, f"{response}\n\n🔓 Free uses left: {3 - user_free_queries[uid]}/3")
         else:
-            bot.reply_to(message, "💎 Free limit reached.\nUpgrade to Premium for unlimited AI + priority access!")
+            bot.reply_to(message, "💎 You've used your 3 free messages.\nUpgrade to Premium for unlimited AI!")
 
-print("🚀 MoneyMachine Bot with Smart Fallback Running!")
+# Add other handlers (btc, shop, premium, etc.) if needed...
+# (For now this is enough to make AI work)
+
+print("🚀 MoneyMachine Bot with Strong Fallback Running!")
 bot.infinity_polling()
