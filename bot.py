@@ -8,21 +8,16 @@ from collections import defaultdict
 import threading
 import os
 
-# ====================== CONFIG (Hybrid - Works on Railway + Local) ======================
+# ====================== CONFIG ======================
 TOKEN = os.getenv("TOKEN") or "8962392711:AAGoYjSYq4iuMupJaruE13YnHMrsJ3lVh-E"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or "AIzaSyDLbCpgUB1Tz68VEnobglQ3h_RbCUrt6yM"
 YOUR_ADMIN_ID = 7446777175
-
-if not TOKEN:
-    print("❌ CRITICAL ERROR: No Token Found!")
-    exit(1)
 
 bot = telebot.TeleBot(TOKEN)
 user_history = defaultdict(list)
 user_free_queries = defaultdict(int)
 
-print("✅ Bot Token Loaded Successfully!")
-print(f"✅ Bot Started with Token: {TOKEN[:15]}...")
+print("✅ Bot Started Successfully!")
 
 # ====================== DATABASE ======================
 def init_db():
@@ -83,25 +78,36 @@ def add_referral(referred_id, referrer_id):
         except:
             pass
 
-# ====================== Gemini AI ======================
+# ====================== IMPROVED Gemini AI ======================
 def ask_gemini(user_id, prompt):
     if len(user_history[user_id]) > 10:
         user_history[user_id] = user_history[user_id][-8:]
     
     history = user_history[user_id][-8:]
-    full_prompt = "\n".join(history) + f"\nUser: {prompt}\nYou are a world-class money making expert. Give practical, actionable advice."
+    full_prompt = "\n".join(history) + f"\nUser: {prompt}\nYou are a world-class money making expert. Give practical, short and actionable advice."
 
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-        data = {"contents": [{"parts": [{"text": full_prompt}]}]}
-        resp = requests.post(url, json=data, timeout=20).json()
-        answer = resp['candidates'][0]['content']['parts'][0]['text']
+        data = {
+            "contents": [{"parts": [{"text": full_prompt}]}],
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 700
+            }
+        }
+        resp = requests.post(url, json=data, timeout=25).json()
         
-        user_history[user_id].append(f"User: {prompt}")
-        user_history[user_id].append(f"AI: {answer[:400]}...")
-        return answer
-    except:
-        return "❌ AI is busy right now. Please try again."
+        if 'candidates' in resp and len(resp['candidates']) > 0:
+            answer = resp['candidates'][0]['content']['parts'][0]['text']
+            user_history[user_id].append(f"User: {prompt}")
+            user_history[user_id].append(f"AI: {answer[:400]}...")
+            return answer
+        else:
+            return "❌ AI service is busy. Please try again in 10 seconds."
+            
+    except Exception as e:
+        print("AI Error:", e)
+        return "❌ AI is temporarily unavailable.\nPlease try again or upgrade to Premium."
 
 # ====================== KEYBOARDS ======================
 def main_menu():
@@ -212,14 +218,14 @@ def successful_payment(message):
     uid = message.from_user.id
     if "premium" in payload:
         set_premium(uid, 30)
-        bot.send_message(uid, "🎉 **Premium Activated!**")
+        bot.send_message(uid, "🎉 **Premium Activated!** Unlimited AI unlocked!")
     else:
         product = payload.replace("buy_", "")
-        bot.send_message(uid, f"✅ Payment Successful! Delivering {product}...")
+        bot.send_message(uid, f"✅ Payment Successful!")
         deliver_product(uid, product)
 
 def deliver_product(chat_id, product):
-    bot.send_message(chat_id, "📥 **Your Product**\n\nhttps://t.me/kkmachinebot\n(Replace with real link later)")
+    bot.send_message(chat_id, "📥 **Your Product is Ready**\n\nhttps://t.me/kkmachinebot\n(Change this link later)")
 
 # ====================== AI CHAT ======================
 @bot.message_handler(func=lambda m: True)
@@ -233,9 +239,9 @@ def chat(message):
         if user_free_queries[uid] < 3:
             user_free_queries[uid] += 1
             response = ask_gemini(uid, message.text)
-            bot.reply_to(message, f"{response}\n\nFree uses left: {3-user_free_queries[uid]}/3")
+            bot.reply_to(message, f"{response}\n\n🔓 Free uses left: {3 - user_free_queries[uid]}/3")
         else:
-            bot.reply_to(message, "💎 Free limit reached. Upgrade to Premium!")
+            bot.reply_to(message, "💎 Free limit reached.\nUpgrade to Premium for unlimited AI!")
 
 # ====================== DAILY TIPS ======================
 def send_daily_tips():
@@ -288,5 +294,5 @@ def stats(message):
     premium = c.fetchone()[0]
     bot.send_message(message.chat.id, f"📊 Total Users: {total}\nPremium: {premium}")
 
-print("🚀 MoneyMachine Bot v6.2 Started Successfully!")
+print("🚀 MoneyMachine Bot v6.3 Running!")
 bot.infinity_polling()
